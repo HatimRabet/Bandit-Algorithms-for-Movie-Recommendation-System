@@ -1,4 +1,3 @@
-import gurobipy
 import numpy as np
 import math
 
