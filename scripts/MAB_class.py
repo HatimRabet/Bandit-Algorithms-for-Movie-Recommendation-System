@@ -1,5 +1,6 @@
 import numpy as np
 import math
+import random
 
 
 
@@ -72,7 +73,7 @@ def g_optimal_design_exploration_algo(A, delta, epsilon, n_rounds, true_rewards)
     A_i = A.copy()
     d = A.shape[0]
     theta = np.random.rand(d)
-    max_reward = max(true_rewards.values())
+    max_reward = np.max(true_rewards)
     cumulative_regret = [0]
 
     t = 0
@@ -115,7 +116,7 @@ import numpy as np
 import math
 
 class MABAgent:
-    def __init__(self, A, delta, epsilon, n_rounds, true_rewards):
+    def __init__(self, A, delta, epsilon, n_rounds, true_rewards, rewardsXmovie_indices, actionXmovie_indices):
         """
         Initializes the MAB Agent
         Parameters:
@@ -135,7 +136,9 @@ class MABAgent:
         self.cumulative_regret = [0]
         self.V_l = np.zeros((self.d, self.d))
         self.sum_reward = np.zeros(self.d)
-        self.max_reward = max(true_rewards.values())
+        self.max_reward = np.max(true_rewards)
+        self.rewardsXmovie_indices = rewardsXmovie_indices  
+        self.actionXmovie_indices = actionXmovie_indices
     
     def V(self, pi):
         """
@@ -209,6 +212,17 @@ class MABAgent:
         self.sum_reward += a.T * reward
         self.theta = np.linalg.inv(self.V_l) @ self.sum_reward
 
+    def reward(self, action_idx):
+        """
+        Returns randomly a reward from a user for this action
+        """
+        movie_id = self.actionXmovie_indices[action_idx]
+        # rewards_indices = [i for i in range(self.rewardsXmovie_indices.size) if self.rewardsXmovie_indices[i] == movie_id]
+        rewards_indices = self.movie_to_rewards_indices.get(movie_id, [])
+        reward_index = random.choice(rewards_indices)
+
+        return self.true_rewards[reward_index]
+
     def run(self):
         """
         Runs the G-optimal design exploration algorithm
@@ -226,7 +240,7 @@ class MABAgent:
 
             for action_idx, n_a in enumerate(N_a):
                 for _ in range(n_a):
-                    true_reward = self.true_rewards[tuple(self.A[action_idx])]
+                    true_reward = self.reward(action_idx)
                     reward = self.A[action_idx] @ self.theta
                     self.cumulative_regret.append(self.cumulative_regret[-1] + (self.max_reward - true_reward))
                     self.update(action_idx, true_reward)
@@ -236,16 +250,6 @@ class MABAgent:
             l += 1
         
         return self.cumulative_regret, self.theta
-
-# Example usage:
-A = np.array([[1, 0], [0, 1], [1, 1]])  # Example actions
-delta = 0.1
-epsilon = 0.01
-n_rounds = 100
-true_rewards = {(1, 0): 0.5, (0, 1): 0.3, (1, 1): 0.7}  # Example rewards
-
-agent = MABAgent(A, delta, epsilon, n_rounds, true_rewards)
-cumulative_regret, theta = agent.run()
 
                 
 
