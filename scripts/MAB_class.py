@@ -218,10 +218,12 @@ class MABAgent:
         """
         movie_id = self.actionXmovie_indices[action_idx]
         # rewards_indices = [i for i in range(self.rewardsXmovie_indices.size) if self.rewardsXmovie_indices[i] == movie_id]
-        rewards_indices = self.movie_to_rewards_indices.get(movie_id, [])
-        reward_index = random.choice(rewards_indices)
-
+        rewards_indices = np.where(self.rewardsXmovie_indices == movie_id)[0]
+        if rewards_indices.size == 0:
+            raise ValueError(f"No rewards found for movie_id {movie_id}")
+        reward_index = np.random.choice(rewards_indices)
         return self.true_rewards[reward_index]
+    
 
     def run(self):
         """
