@@ -156,7 +156,7 @@ class MABAgent:
         Calculates the g function
         """
         V_pi = self.V(pi)
-        inv_V_pi = np.linalg.inv(V_pi)
+        inv_V_pi = np.linalg.inv(V_pi+0.01*np.eye(V_pi.shape[0]))
         max_g = -float("inf")
         a_max = None
 
@@ -193,7 +193,18 @@ class MABAgent:
         while g_pi_k > (1 + epsilon) * self.d:
             g_pi_k, a_k = self.g(pi_k)
             gamma_k = ((1 / self.d) * g_pi_k - 1) / (g_pi_k - 1)
-            pi_k = (1 - gamma_k) * pi_k + gamma_k * (self.A == a_k)
+            a_k = np.array(a_k)
+
+            # Find the index of the row that matches `a_k`
+            row_index = np.flatnonzero(np.all(self.A == a_k, axis=1))
+
+            # We assume a_k is unique, so we take the first match
+            row_index = row_index[0]
+
+            # Create the indicator vector
+            indicator_vector = np.zeros(self.A.shape[0], dtype=int)
+            indicator_vector[row_index] = 1
+            pi_k = (1 - gamma_k) * pi_k + gamma_k * indicator_vector
         
         return pi_k
 
@@ -203,21 +214,22 @@ class MABAgent:
         """
         return np.random.choice(len(self.A), p=pi)
 
-    def update(self, action, reward):
+    def update(self, action_indices, true_rewards):
         """
         Updates the agent's parameters based on the received reward
         """
-        a = self.A[action]
-        self.V_l += a.T @ a
-        self.sum_reward += a.T * reward
-        self.theta = np.linalg.inv(self.V_l) @ self.sum_reward
+        for action, reward in zip(action_indices,true_rewards):
+            a = self.A[action]
+            self.V_l += a.T @ a
+            self.sum_reward += a.T * reward
+
+        self.theta = np.linalg.inv(self.V_l + 0.01*np.eye(self.V_l.shape[0])) @ self.sum_reward
 
     def reward(self, action_idx):
         """
         Returns randomly a reward from a user for this action
         """
         movie_id = self.actionXmovie_indices[action_idx]
-        # rewards_indices = [i for i in range(self.rewardsXmovie_indices.size) if self.rewardsXmovie_indices[i] == movie_id]
         rewards_indices = np.where(self.rewardsXmovie_indices == movie_id)[0]
         if rewards_indices.size == 0:
             raise ValueError(f"No rewards found for movie_id {movie_id}")
@@ -239,14 +251,17 @@ class MABAgent:
             N = sum(N_a)
             rewards, X_t = np.zeros(N), np.zeros(N)
             tracker = 0
-
+            action_indices = []
+            true_rewards = []
             for action_idx, n_a in enumerate(N_a):
                 for _ in range(n_a):
                     true_reward = self.reward(action_idx)
                     reward = self.A[action_idx] @ self.theta
-                    self.cumulative_regret.append(self.cumulative_regret[-1] + (self.max_reward - true_reward))
-                    self.update(action_idx, true_reward)
-                    tracker += 1
+                    self.cumulative_regret.append(self.cumulative_regret[-1] + (reward - true_reward))
+                    action_indices.append(action_idx)
+                    true_rewards.append(true_reward)
+            self.update(action_indices, true_rewards)
+            tracker += 1
 
             t += N
             l += 1
