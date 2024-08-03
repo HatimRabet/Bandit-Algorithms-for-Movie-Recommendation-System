@@ -1,131 +1,181 @@
-import numpy as np
-import math
-import random
+# import numpy as np
+# import math
 
+# class MABAgent:
+#     def __init__(self, A, delta, epsilon, n_rounds, true_rewards, rewardsXmovie_indices, actionXmovie_indices):
+#         """
+#         Initializes the MAB Agent
+#         Parameters:
+#         A : numpy array representing the actions
+#         delta : float, parameter for na function
+#         epsilon : float, precision parameter for the Frank-Wolfe algorithm
+#         n_rounds : int, number of rounds for exploration
+#         true_rewards : dict, mapping actions to their true rewards
+#         """
+#         self.A = A
+#         self.delta = delta
+#         self.epsilon = epsilon
+#         self.n_rounds = n_rounds
+#         self.true_rewards = true_rewards
+#         self.d = A.shape[1]
+#         self.theta = np.random.rand(self.d)
+#         self.cumulative_regret = [0]
+#         self.V_l = np.zeros((self.d, self.d))
+#         self.sum_reward = np.zeros(self.d)
+#         self.max_reward = np.max(true_rewards)
+#         self.rewardsXmovie_indices = rewardsXmovie_indices  
+#         self.actionXmovie_indices = actionXmovie_indices
+#         self.pi = np.ones(A.shape[0]) / A.shape[0]
 
-
-def V(A, pi):
-    """
-    This function will return the V_pi matrix of a design
-    Parameters : 
-    A : numpy array representing the actions
-    pi : Array of probabilities associated to each action
-    """
-
-    V_pi = 0
-    for a, pi_a in zip(A,pi):
-        V_pi += pi_a * (a.T @ a)
-
-    return V_pi
-
-def g(A, pi):
-    """
-    """
-
-    V_pi = V(A,pi)
-    inv_V_pi = np.linalg.inv(V_pi)
-    max_g = -float("inf")
-    a_max = None
-
-    for a in A:
-        g_a = a @ inv_V_pi @ a.T
-        if g_a >= max_g:
-            max_g = max(max_g, g_a)
-            a_max = a
-
-    return max_g, a_max
-
-
-def na(A, pi, epsilon, delta, l, k=2):
+#     def get_pi(self):
+#         return self.pi
     
-    d = A.shape[1]
-    common_term = (2 * d * np.log(k*(l*(l+1))/delta)) / epsilon**2
-    Na = []
+#     def V(self):
+#         """
+#         This function will return the V_pi matrix of a design
+#         Parameters:
+#         pi : Array of probabilities associated to each action
+#         """
+#         V_pi = np.zeros((self.d, self.d))
+#         for a, pi_a in zip(self.A, self.pi):
+#             V_pi += pi_a * (a.T @ a)
+#         return V_pi
 
-    for pi_a in pi:
-        na = common_term * pi_a
-        na = math.ceil(na)
-        Na.append(na)
+#     def g(self):
+#         """
+#         Calculates the g function
+#         """
+#         V_pi = self.V()
+#         # inv_V_pi = np.linalg.inv(V_pi+0.01*np.eye(V_pi.shape[0]))
+#         inv_V_pi = np.linalg.pinv(V_pi)
+#         max_g = -float("inf")
+#         a_max = None
 
-    return Na
+#         for a in self.A:
+#             g_a = a @ inv_V_pi @ a.T
+#             if g_a >= max_g:
+#                 max_g = max(max_g, g_a)
+#                 a_max = a
 
+#         return max_g, a_max
 
-def frank_wolfe_algo(A, epsilon):
+#     def na(self, epsilon, delta, l, k=2):
+#         """
+#         Calculate the number of samples required for each action
+#         """
+#         common_term = (2 * self.d * np.log(k * (l * (l + 1)) / delta)) / epsilon ** 2
+#         Na = []
 
-    d, card_A = A.shape[1], A.shape[0]
-    pi_k = np.ones(card_A)
-    pi_k /= card_A
-    # n_iterations = int(d * np.log(np.log(card_A)) + d/epsilon)
-    g_pi_k = g(A,pi_k)[0]
+#         for pi_a in self.pi:
+#             na = common_term * pi_a
+#             na = math.ceil(na)
+#             Na.append(na)
 
-    while g_pi_k > (1+epsilon) * d :
+#         return Na
 
-        g_pi_k, a_k = g(A,pi_k)
-        gamma_k = ((1 / d) * g_pi_k - 1) / (g_pi_k - 1)
-        pi_k = (1-gamma_k) * pi_k + gamma_k * (A == a_k)
-    
-    return pi_k
+#     def frank_wolfe_algo(self, epsilon):
+#         """
+#         Frank-Wolfe optimization algorithm
+#         """
+#         # card_A = self.A.shape[0]
+#         # pi_k = np.ones(card_A) / card_A
+#         g_pi_k = self.g()[0]
 
-    
+#         while g_pi_k > (1 + epsilon) * self.d:
+#             g_pi_k, a_k = self.g()
+#             gamma_k = ((1 / self.d) * g_pi_k - 1) / (g_pi_k - 1)
+#             a_k = np.array(a_k)
 
-def g_optimal_design_exploration_algo(A, delta, epsilon, n_rounds, true_rewards):
-    l = 1
-    A_i = A.copy()
-    d = A.shape[0]
-    theta = np.random.rand(d)
-    max_reward = np.max(true_rewards)
-    cumulative_regret = [0]
+#             # Find the index of the row that matches `a_k`
+#             row_index = np.flatnonzero(np.all(self.A == a_k, axis=1))
 
-    t = 0
-    while t < n_rounds:
-        pi_optimal = frank_wolfe_algo(A,epsilon)
-        epsilon_l = 2**(-l)
-        N_a = na(A, pi_optimal, epsilon_l, delta, l)
-        N = sum(N_a)
-        rewards, X_t = np.zeros(N), np.zeros(N)
-        tracker = 0
-        V_l = np.zeros((d,d))
-        sum_reward = np.zeros(d)
+#             # We assume a_k is unique, so we take the first match
+#             row_index = row_index[0]
+
+#             # Create the indicator vector
+#             indicator_vector = np.zeros(self.A.shape[0], dtype=int)
+#             indicator_vector[row_index] = 1
+#             self.pi = (1 - gamma_k) * self.pi + gamma_k * indicator_vector
         
-        for a, n_a in zip(A_i, N_a):
-            times = 0
-            while times < n_a:
-                r = a @ theta
-                rewards[tracker] = r
-                true_reward = true_rewards[a] 
-                cumulative_regret.append(cumulative_regret[-1] + (max_reward - true_reward))
-                X_t[tracker] = true_reward
-                sum_reward += a.T * true_reward
-                tracker += 1
-                times += 1
+#         return self.pi
+
+#     def select_action(self):
+#         """
+#         Selects an action based on the given probability distribution pi
+#         """
+#         return np.random.choice(len(self.A), p=self.pi)
+
+#     def update(self, action_indices, true_rewards):
+#         """
+#         Updates the agent's parameters based on the received reward
+#         """
+#         for action, reward in zip(action_indices,true_rewards):
+#             a = self.A[action]
+#             self.V_l += a.T @ a
+#             self.sum_reward += a.T * reward
+            
+
+#         # self.theta = np.linalg.inv(self.V_l + 0.01*np.eye(self.V_l.shape[0])) @ self.sum_reward
+#         self.theta = np.linalg.pinv(self.V_l) @ self.sum_reward
+        
+
+#     def reward(self, action_idx):
+#         """
+#         Returns randomly a reward from a user for this action
+#         """
+#         movie_id = self.actionXmovie_indices[action_idx]
+#         rewards_indices = np.where(self.rewardsXmovie_indices == movie_id)[0]
+#         if rewards_indices.size == 0:
+#             raise ValueError(f"No rewards found for movie_id {movie_id}")
+#         reward_index = np.random.choice(rewards_indices)
+#         return self.true_rewards[reward_index]
+    
+
+#     def run(self):
+#         """
+#         Runs the G-optimal design exploration algorithm
+#         """
+#         l = 1
+#         t = 0
+
+#         while t < self.n_rounds:
+#             self.pi = self.frank_wolfe_algo(self.epsilon)
+#             epsilon_l = 2 ** (-l)
+#             N_a = self.na(self.pi, epsilon_l, self.delta, l)
+#             N = sum(N_a)
+#             rewards, X_t = np.zeros(N), np.zeros(N)
+#             tracker = 0
+#             action_indices = []
+#             true_rewards = []
+#             for action_idx, n_a in enumerate(N_a):
+#                 for _ in range(n_a):
+#                     true_reward = np.max(np.dot(self.A, self.theta))
+#                     reward = self.A[action_idx] @ self.theta
+#                     self.cumulative_regret.append(self.cumulative_regret[-1] + (true_reward - reward))
+#                     action_indices.append(action_idx)
+#                     true_rewards.append(true_reward)
+#             self.update(action_indices, true_rewards)
+#             tracker += 1
+
+#             t += N
+#             l += 1
+        
+#         return self.cumulative_regret, self.theta
+
                 
-            
-            V_l += n_a * a.T @ a
-            
-        
-        theta = np.linalg.inv(V_l) @ sum_reward
-        t += N
-        l += 1
-    
-    return cumulative_regret, theta
-        
-        
-        
+
+
+
+
+
+
+
 
 import numpy as np
 import math
 
 class MABAgent:
     def __init__(self, A, delta, epsilon, n_rounds, true_rewards, rewardsXmovie_indices, actionXmovie_indices):
-        """
-        Initializes the MAB Agent
-        Parameters:
-        A : numpy array representing the actions
-        delta : float, parameter for na function
-        epsilon : float, precision parameter for the Frank-Wolfe algorithm
-        n_rounds : int, number of rounds for exploration
-        true_rewards : dict, mapping actions to their true rewards
-        """
         self.A = A
         self.delta = delta
         self.epsilon = epsilon
@@ -136,99 +186,58 @@ class MABAgent:
         self.cumulative_regret = [0]
         self.V_l = np.zeros((self.d, self.d))
         self.sum_reward = np.zeros(self.d)
-        self.max_reward = np.max(true_rewards)
         self.rewardsXmovie_indices = rewardsXmovie_indices  
         self.actionXmovie_indices = actionXmovie_indices
+        self.pi = np.ones(A.shape[0]) / A.shape[0]
+
+    def get_pi(self):
+        return self.pi
     
-    def V(self, pi):
-        """
-        This function will return the V_pi matrix of a design
-        Parameters:
-        pi : Array of probabilities associated to each action
-        """
+    def V(self):
         V_pi = np.zeros((self.d, self.d))
-        for a, pi_a in zip(self.A, pi):
-            V_pi += pi_a * (a.T @ a)
+        for a, pi_a in zip(self.A, self.pi):
+            V_pi += pi_a * np.outer(a, a)
         return V_pi
 
-    def g(self, pi):
-        """
-        Calculates the g function
-        """
-        V_pi = self.V(pi)
-        inv_V_pi = np.linalg.inv(V_pi+0.01*np.eye(V_pi.shape[0]))
+    def g(self):
+        V_pi = self.V()
+        inv_V_pi = np.linalg.inv(V_pi + np.eye(V_pi.shape[0]))
         max_g = -float("inf")
         a_max = None
-
         for a in self.A:
-            g_a = a @ inv_V_pi @ a.T
-            if g_a >= max_g:
-                max_g = max(max_g, g_a)
+            g_a = a @ inv_V_pi @ a
+            if g_a > max_g:
+                max_g = g_a
                 a_max = a
-
         return max_g, a_max
 
-    def na(self, pi, epsilon, delta, l, k=2):
-        """
-        Calculate the number of samples required for each action
-        """
-        common_term = (2 * self.d * np.log(k * (l * (l + 1)) / delta)) / epsilon ** 2
-        Na = []
-
-        for pi_a in pi:
-            na = common_term * pi_a
-            na = math.ceil(na)
-            Na.append(na)
-
+    def na(self, l):
+        common_term = (2 * self.d * np.log(self.A.shape[0] * (l * (l + 1)) / self.delta)) / self.epsilon ** 2
+        Na = [math.ceil(common_term * pi_a) for pi_a in self.pi]
         return Na
 
-    def frank_wolfe_algo(self, epsilon):
-        """
-        Frank-Wolfe optimization algorithm
-        """
-        card_A = self.A.shape[0]
-        pi_k = np.ones(card_A) / card_A
-        g_pi_k = self.g(pi_k)[0]
-
-        while g_pi_k > (1 + epsilon) * self.d:
-            g_pi_k, a_k = self.g(pi_k)
+    def frank_wolfe_algo(self):
+        g_pi_k = self.g()[0]
+        while g_pi_k > (1 + self.epsilon) * self.d:
+            g_pi_k, a_k = self.g()
             gamma_k = ((1 / self.d) * g_pi_k - 1) / (g_pi_k - 1)
-            a_k = np.array(a_k)
-
-            # Find the index of the row that matches `a_k`
-            row_index = np.flatnonzero(np.all(self.A == a_k, axis=1))
-
-            # We assume a_k is unique, so we take the first match
-            row_index = row_index[0]
-
-            # Create the indicator vector
-            indicator_vector = np.zeros(self.A.shape[0], dtype=int)
+            indicator_vector = np.zeros(self.A.shape[0])
+            row_index = np.flatnonzero(np.all(self.A == a_k, axis=1))[0]
             indicator_vector[row_index] = 1
-            pi_k = (1 - gamma_k) * pi_k + gamma_k * indicator_vector
-        
-        return pi_k
+            self.pi = (1 - gamma_k) * self.pi + gamma_k * indicator_vector
+        return self.pi
 
-    def select_action(self, pi):
-        """
-        Selects an action based on the given probability distribution pi
-        """
-        return np.random.choice(len(self.A), p=pi)
+    def select_action(self):
+        return np.random.choice(len(self.A), p=self.pi)
 
     def update(self, action_indices, true_rewards):
-        """
-        Updates the agent's parameters based on the received reward
-        """
-        for action, reward in zip(action_indices,true_rewards):
+        for action, reward in zip(action_indices, true_rewards):
             a = self.A[action]
-            self.V_l += a.T @ a
-            self.sum_reward += a.T * reward
-
-        self.theta = np.linalg.inv(self.V_l + 0.01*np.eye(self.V_l.shape[0])) @ self.sum_reward
+            self.V_l += np.outer(a, a)
+            self.sum_reward += a * reward
+        self.theta = np.linalg.inv(self.V_l + np.eye(self.V_l.shape[0])) @ self.sum_reward
 
     def reward(self, action_idx):
-        """
-        Returns randomly a reward from a user for this action
-        """
         movie_id = self.actionXmovie_indices[action_idx]
         rewards_indices = np.where(self.rewardsXmovie_indices == movie_id)[0]
         if rewards_indices.size == 0:
@@ -236,44 +245,23 @@ class MABAgent:
         reward_index = np.random.choice(rewards_indices)
         return self.true_rewards[reward_index]
     
-
     def run(self):
-        """
-        Runs the G-optimal design exploration algorithm
-        """
         l = 1
         t = 0
-
         while t < self.n_rounds:
-            pi_optimal = self.frank_wolfe_algo(self.epsilon)
-            epsilon_l = 2 ** (-l)
-            N_a = self.na(pi_optimal, epsilon_l, self.delta, l)
+            self.pi = self.frank_wolfe_algo()
+            N_a = self.na(l)
             N = sum(N_a)
-            rewards, X_t = np.zeros(N), np.zeros(N)
-            tracker = 0
             action_indices = []
             true_rewards = []
             for action_idx, n_a in enumerate(N_a):
                 for _ in range(n_a):
-                    true_reward = self.reward(action_idx)
+                    true_reward = np.max(self.A @ self.theta)
                     reward = self.A[action_idx] @ self.theta
-                    self.cumulative_regret.append(self.cumulative_regret[-1] + (reward - true_reward))
+                    self.cumulative_regret.append(self.cumulative_regret[-1] + (true_reward - reward))
                     action_indices.append(action_idx)
                     true_rewards.append(true_reward)
             self.update(action_indices, true_rewards)
-            tracker += 1
-
             t += N
             l += 1
-        
         return self.cumulative_regret, self.theta
-
-                
-
-
-
-
-
-
-
-
