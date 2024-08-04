@@ -202,7 +202,8 @@ class MABAgent:
 
     def g(self):
         V_pi = self.V()
-        inv_V_pi = np.linalg.inv(V_pi + np.eye(V_pi.shape[0]))
+
+        inv_V_pi = np.linalg.inv(V_pi + 0.1*np.eye(V_pi.shape[0]))
         max_g = -float("inf")
         a_max = None
         for a in self.A:
@@ -236,7 +237,8 @@ class MABAgent:
             a = self.A[action]
             self.V_l += np.outer(a, a)
             self.sum_reward += a * reward
-        self.theta = np.linalg.inv(self.V_l + np.eye(self.V_l.shape[0])) @ self.sum_reward
+
+        self.theta = np.linalg.inv(self.V_l + 0.1*np.eye(self.V_l.shape[0])) @ self.sum_reward
 
     def reward(self, action_idx):
         movie_id = self.actionXmovie_indices[action_idx]
