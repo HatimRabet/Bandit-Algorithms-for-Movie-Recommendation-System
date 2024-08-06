@@ -9,8 +9,9 @@ class MABAgent:
         self.delta = delta
         self.epsilon = epsilon
         self.n_rounds = n_rounds
-        self.true_rewards = true_rewards
         self.d = A.shape[1]
+        self.true_rewards = true_rewards
+        self.m = np.linalg.matrix_rank(A)
         self.theta = np.random.rand(self.d)
         self.cumulative_regret = [0]
         self.regret = [0]
@@ -46,10 +47,21 @@ class MABAgent:
         common_term = (2 * self.d * np.log(self.A.shape[0] * (l * (l + 1)) / self.delta)) / self.epsilon ** 2
         Na = [math.ceil(common_term * pi_a) for pi_a in self.pi]
         return Na
+    
+    def compute_max(self, action_idx):
+        a = self.A[action_idx]
+        b = self.A
+        max_value = np.max(self.theta @ (b.T - a[:, np.newaxis]))
+        return max_value
+
+    
+    def elimination_phase(self, epsilon):
+        remaining = [self.A[action_idx] for action_idx in range(self.A.shape[0]) if self.compute_max(action_idx) < 2*epsilon]
+        self.A = np.array(remaining)
 
     def frank_wolfe_algo(self):
         g_pi_k = self.g()[0]
-        while g_pi_k > (1 + self.epsilon) * self.d:
+        while g_pi_k > (1 + self.epsilon) * self.m:
             g_pi_k, a_k = self.g()
             gamma_k = ((1 / self.d) * g_pi_k - 1) / (g_pi_k - 1)
             indicator_vector = np.zeros(self.A.shape[0])
@@ -61,13 +73,15 @@ class MABAgent:
     def select_action(self):
         return np.random.choice(len(self.A), p=self.pi)
 
-    def update(self, action_indices, true_rewards):
-        for action, reward in zip(action_indices, true_rewards):
+    def update(self, action_indices, true_rewards, Na):
+        for action, reward, na in zip(action_indices, true_rewards):
             a = self.A[action]
-            self.V_l += np.outer(a, a)
+            na = Na[action]
+            self.V_l += na * np.outer(a, a)
             self.sum_reward += a * reward
 
-        self.theta = np.linalg.inv(self.V_l + 0.1*np.eye(self.V_l.shape[0])) @ self.sum_reward
+        # self.theta = np.linalg.inv(self.V_l + 0.1*np.eye(self.V_l.shape[0])) @ self.sum_reward
+        self.theta = np.linalg.inv(self.V_l) @ self.sum_reward
 
     def reward(self, action_idx):
         movie_id = self.actionXmovie_indices[action_idx]
@@ -96,6 +110,8 @@ class MABAgent:
                     action_indices.append(action_idx)
                     true_rewards.append(true_reward)
             self.update(action_indices, true_rewards)
+            epsilon = 2**(-l)
+            self.elimination_phase(epsilon)
             t += N
             l += 1
         return self.cumulative_regret, self.regret, self.theta
