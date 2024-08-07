@@ -1,5 +1,6 @@
 import numpy as np
 import math
+from utils import matrix_rank
 
 # I must rethink this part;, it is not well implemented
 
@@ -11,8 +12,8 @@ class MABAgent:
         self.n_rounds = n_rounds
         self.d = A.shape[1]
         self.true_rewards = true_rewards
-        self.m = np.linalg.matrix_rank(A)
-        self.theta = np.random.rand(self.d)
+        self.m = matrix_rank(A)
+        self.theta = np.random.rand(self.d,1)
         self.cumulative_regret = [0]
         self.regret = [0]
         self.V_l = np.zeros((self.d, self.d))
@@ -24,6 +25,7 @@ class MABAgent:
     def get_pi(self):
         return self.pi
     
+    
     def V(self):
         V_pi = np.zeros((self.d, self.d))
         for a, pi_a in zip(self.A, self.pi):
@@ -33,25 +35,27 @@ class MABAgent:
     def g(self):
         V_pi = self.V()
 
-        inv_V_pi = np.linalg.inv(V_pi + 0.1*np.eye(V_pi.shape[0]))
+        inv_V_pi = np.linalg.inv(V_pi + 1*np.eye(V_pi.shape[0]))
         max_g = -float("inf")
         a_max = None
         for a in self.A:
-            g_a = a @ inv_V_pi @ a
+            a_col = a[:,np.newaxis]
+            g_a = a_col.T @ inv_V_pi @ a_col
             if g_a > max_g:
                 max_g = g_a
                 a_max = a
-        return max_g, a_max
+        return max_g, a_max.T
 
     def na(self, l):
-        common_term = (2 * self.d * np.log(self.A.shape[0] * (l * (l + 1)) / self.delta)) / self.epsilon ** 2
+        epsilon = 2**(-l)
+        common_term = (2 * self.d * np.log(self.A.shape[0] * (l * (l + 1)) / self.delta)) / epsilon ** 2
         Na = [math.ceil(common_term * pi_a) for pi_a in self.pi]
         return Na
     
     def compute_max(self, action_idx):
         a = self.A[action_idx]
         b = self.A
-        max_value = np.max(self.theta @ (b.T - a[:, np.newaxis]))
+        max_value = np.max(self.theta.T @ (b.T - a[:, np.newaxis]))
         return max_value
 
     
@@ -61,6 +65,7 @@ class MABAgent:
 
     def frank_wolfe_algo(self):
         g_pi_k = self.g()[0]
+        self.pi = np.ones(self.A.shape[0]) / self.A.shape[0]
         while g_pi_k > (1 + self.epsilon) * self.m:
             g_pi_k, a_k = self.g()
             gamma_k = ((1 / self.d) * g_pi_k - 1) / (g_pi_k - 1)
@@ -73,15 +78,15 @@ class MABAgent:
     def select_action(self):
         return np.random.choice(len(self.A), p=self.pi)
 
-    def update(self, action_indices, true_rewards, Na):
-        for action, reward, na in zip(action_indices, true_rewards):
-            a = self.A[action]
-            na = Na[action]
-            self.V_l += na * np.outer(a, a)
+    def update(self, action_indices, true_rewards):
+        self.sum_reward = 0
+        for action, reward in zip(action_indices, true_rewards):
+            a = self.A[action][:,np.newaxis] # row to column vector
+            self.V_l +=  np.outer(a, a)
             self.sum_reward += a * reward
 
-        # self.theta = np.linalg.inv(self.V_l + 0.1*np.eye(self.V_l.shape[0])) @ self.sum_reward
-        self.theta = np.linalg.inv(self.V_l) @ self.sum_reward
+        self.theta = np.linalg.inv(self.V_l + 1*np.eye(self.V_l.shape[0])) @ self.sum_reward
+        
 
     def reward(self, action_idx):
         movie_id = self.actionXmovie_indices[action_idx]
