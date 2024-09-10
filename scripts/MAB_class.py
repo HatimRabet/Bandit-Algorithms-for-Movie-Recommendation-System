@@ -2,7 +2,8 @@ import numpy as np
 import math
 from utils import matrix_rank
 
-# I must rethink this part;, it is not well implemented
+
+# G-Optimal Design Agent Class
 
 class MABAgent:
     def __init__(self, A, delta, epsilon, n_rounds, true_rewards, rewardsXmovie_indices, actionXmovie_indices):
@@ -27,9 +28,12 @@ class MABAgent:
     
     
     def V(self):
-        V_pi = np.zeros((self.d, self.d))
+        shape = self.A.shape[1]
+        V_pi = np.zeros((shape, shape))
+
         for a, pi_a in zip(self.A, self.pi):
             V_pi += pi_a * np.outer(a, a)
+
         return V_pi
 
     def g(self):
@@ -105,8 +109,10 @@ class MABAgent:
             N = sum(N_a)
             action_indices = []
             true_rewards = []
+
             for action_idx, n_a in enumerate(N_a):
                 for _ in range(n_a):
+
                     true_reward = np.max(self.A @ self.theta)
                     reward = self.A[action_idx] @ self.theta
                     regret = (true_reward - reward)
@@ -114,13 +120,21 @@ class MABAgent:
                     self.regret.append(regret)
                     action_indices.append(action_idx)
                     true_rewards.append(true_reward)
+
             self.update(action_indices, true_rewards)
+
             epsilon = 2**(-l)
             self.elimination_phase(epsilon)
+
             t += N
             l += 1
         return self.cumulative_regret, self.regret, self.theta
 
+
+
+
+
+# LinUCB Agent Class
 
 
 class LinUCB_MABAgent:
@@ -190,6 +204,9 @@ class LinUCB_MABAgent:
 
 
 
+
+# UCB Agent Class
+
 class UCB_MABAgent:
     def __init__(self, A, delta, n_rounds, true_rewards, rewardsXmovie_indices, actionXmovie_indices):
         self.A = A
@@ -218,6 +235,106 @@ class UCB_MABAgent:
     def update(self, action_idx, reward):
         self.action_counts[action_idx] += 1
         self.total_reward[action_idx] += reward
+
+    def reward(self, action_idx):
+        movie_id = self.actionXmovie_indices[action_idx]
+        rewards_indices = np.where(self.rewardsXmovie_indices == movie_id)[0]
+        if rewards_indices.size == 0:
+            raise ValueError(f"No rewards found for movie_id {movie_id}")
+        reward_index = np.random.choice(rewards_indices)
+        return self.true_rewards[reward_index]
+
+    def run(self):
+        while self.time < self.n_rounds:
+            action_idx = self.select_action()
+            reward = self.reward(action_idx)
+            self.update(action_idx, reward)
+            true_reward = np.max(self.A @ self.theta)
+            self.cumulative_regret.append(self.cumulative_regret[-1] + (true_reward - reward))
+            self.time += 1
+        return self.cumulative_regret, self.theta
+
+
+
+
+# Thompson Sampling Agent Class
+
+
+class TS_MABAgent:
+    def __init__(self, A, n_rounds, true_rewards, rewardsXmovie_indices, actionXmovie_indices):
+        self.A = A
+        self.n_rounds = n_rounds
+        self.true_rewards = true_rewards
+        self.d = A.shape[1]
+        self.theta = np.random.rand(self.d)
+        self.cumulative_regret = [0]
+        self.rewardsXmovie_indices = rewardsXmovie_indices  
+        self.actionXmovie_indices = actionXmovie_indices
+        self.n_actions = A.shape[0]
+        self.successes = np.zeros(self.n_actions)
+        self.failures = np.zeros(self.n_actions)
+        self.time = 0
+
+    def select_action(self):
+        # Sample from Beta distribution for each action
+        sampled_values = np.random.beta(self.successes + 1, self.failures + 1)
+        return np.argmax(sampled_values)
+
+    def update(self, action_idx, reward):
+        # Update successes or failures based on the reward
+        if reward > 0:
+            self.successes[action_idx] += 1
+        else:
+            self.failures[action_idx] += 1
+
+    def reward(self, action_idx):
+        movie_id = self.actionXmovie_indices[action_idx]
+        rewards_indices = np.where(self.rewardsXmovie_indices == movie_id)[0]
+        if rewards_indices.size == 0:
+            raise ValueError(f"No rewards found for movie_id {movie_id}")
+        reward_index = np.random.choice(rewards_indices)
+        return self.true_rewards[reward_index]
+
+    def run(self):
+        while self.time < self.n_rounds:
+            action_idx = self.select_action()
+            reward = self.reward(action_idx)
+            self.update(action_idx, reward)
+            true_reward = np.max(self.A @ self.theta)
+            self.cumulative_regret.append(self.cumulative_regret[-1] + (true_reward - reward))
+            self.time += 1
+        return self.cumulative_regret, self.theta
+
+
+
+# EXP3 (Exponential-weight algorithm for Exploration and Exploitation) Agent Class
+
+
+class EXP3_MABAgent:
+    def __init__(self, A, gamma, n_rounds, true_rewards, rewardsXmovie_indices, actionXmovie_indices):
+        self.A = A
+        self.gamma = gamma  # Exploration parameter
+        self.n_rounds = n_rounds
+        self.true_rewards = true_rewards
+        self.d = A.shape[1]
+        self.theta = np.random.rand(self.d)
+        self.cumulative_regret = [0]
+        self.rewardsXmovie_indices = rewardsXmovie_indices  
+        self.actionXmovie_indices = actionXmovie_indices
+        self.n_actions = A.shape[0]
+        self.weights = np.ones(self.n_actions)  # Initialize weights to 1 for each action
+        self.probabilities = np.ones(self.n_actions) / self.n_actions  # Initial uniform probability distribution
+        self.time = 0
+
+    def select_action(self):
+        # Normalize weights to get a probability distribution over actions
+        total_weight = np.sum(self.weights)
+        self.probabilities = (1 - self.gamma) * (self.weights / total_weight) + self.gamma / self.n_actions
+        return np.random.choice(self.n_actions, p=self.probabilities)
+
+    def update(self, action_idx, reward):
+        estimated_reward = reward / self.probabilities[action_idx]
+        self.weights[action_idx] *= np.exp(self.gamma * estimated_reward / self.n_actions)
 
     def reward(self, action_idx):
         movie_id = self.actionXmovie_indices[action_idx]
