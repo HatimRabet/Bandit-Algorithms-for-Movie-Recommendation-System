@@ -47,8 +47,19 @@ In this project, I implemented and compared the performance of various Multi-Arm
    - G-Optimal design focuses on reducing the maximum prediction variance over possible actions. It ensures exploration is directed towards actions that provide the most information about the true underlying model, minimizing the worst-case prediction error.
    - In a linear bandit setting, the agent selects the action that maximizes the minimum eigenvalue of the design matrix, ensuring that the exploration is focused on the directions of greatest uncertainty.
 
-### Dataset:
-The dataset used for the experiments contains movie ratings and features. The goal of the bandit agents is to select movies that will maximize the cumulative reward (e.g., positive user ratings), given contextual information such as user and movie features.
+### Data
+
+The dataset used for the experiments is sourced from Kaggle. To run the experiments, you need to download and upload the dataset to the appropriate directory. Follow these steps to obtain and prepare the data:
+
+1. **Download the Dataset**:
+   - Visit the [Kaggle dataset page](https://www.kaggle.com/datasets/rounakbanik/the-movies-dataset) to download the movie ratings dataset. You may need to log in to your Kaggle account and accept any terms and conditions before downloading.
+
+2. **Upload the Dataset**:
+   - After downloading, unzip the dataset if necessary.
+   - Place the dataset file(s) in the `data/` directory of this project. Ensure that the file names and formats match the expected input for the experiments.
+
+3. **Verify the Data**:
+   - Check that the dataset is correctly placed in the `data/` directory and that the file structure matches the expected format. This ensures that the experiment scripts can properly access and utilize the data.
 
 ### Comparison Methodology:
 
