@@ -31,7 +31,7 @@ class MABAgent:
         shape = self.A.shape[1]
         V_pi = np.zeros((shape, shape))
 
-        for a, pi_a in zip(self.A, self.pi):
+        for a, pi_a in zip(self.A, self.pi.flatten()):
             V_pi += pi_a * np.outer(a, a)
 
         return V_pi
@@ -77,6 +77,8 @@ class MABAgent:
             row_index = np.flatnonzero(np.all(self.A == a_k, axis=1))[0]
             indicator_vector[row_index] = 1
             self.pi = (1 - gamma_k) * self.pi + gamma_k * indicator_vector
+        
+        self.pi = self.pi.flatten()
         return self.pi
 
     def select_action(self):
