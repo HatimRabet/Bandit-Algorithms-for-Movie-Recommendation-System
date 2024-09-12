@@ -326,28 +326,35 @@ class TS_MABAgent:
 
 
 class EXP3_MABAgent:
-    def __init__(self, A, gamma, n_rounds, n_actions, max_reward, true_rewards, rewardsXmovie_indices, actionXmovie_indices):
-        self.gamma = gamma  # Exploration parameter
+    def __init__(self, eta, n_rounds, n_actions, max_reward, true_rewards, rewardsXmovie_indices, actionXmovie_indices):
+        self.eta = eta
         self.n_rounds = n_rounds
         self.true_rewards = true_rewards
         self.max_reward = max_reward
+        self.total_reward = np.zeros(n_actions)
         self.cumulative_regret = [0]
         self.rewardsXmovie_indices = rewardsXmovie_indices  
         self.actionXmovie_indices = actionXmovie_indices
         self.n_actions = n_actions
-        self.weights = np.ones(self.n_actions)  # Initialize weights to 1 for each action
+        self.action_counts = np.zeros(self.n_actions)
+        self.S = np.zeros(self.n_actions)
         self.probabilities = np.ones(self.n_actions) / self.n_actions  # Initial uniform probability distribution
         self.time = 0
 
     def select_action(self):
-        # Normalize weights to get a probability distribution over actions
-        total_weight = np.sum(self.weights)
-        self.probabilities = (1 - self.gamma) * (self.weights / total_weight) + self.gamma / self.n_actions
+        # Use softmax to normalize the weights and avoid numerical instability
+        max_S = np.max(self.S)  # Subtract the maximum value for numerical stability
+        exp_S = np.exp(self.S - max_S)
+        total_sum = np.sum(exp_S)
+        self.probabilities = exp_S / total_sum
         return np.random.choice(self.n_actions, p=self.probabilities)
 
+
     def update(self, action_idx, reward):
-        estimated_reward = reward / self.probabilities[action_idx]
-        self.weights[action_idx] *= np.exp(self.gamma * estimated_reward / self.n_actions)
+        self.S += 1 
+        self.S[action_idx] = self.S[action_idx] - (1- (reward / self.max_reward))  
+        self.total_reward[action_idx] += reward
+        self.action_counts[action_idx] += 1
 
     def reward(self, action_idx):
         movie_id = self.actionXmovie_indices[action_idx]
@@ -365,4 +372,4 @@ class EXP3_MABAgent:
         
             self.cumulative_regret.append(self.cumulative_regret[-1] + (self.max_reward - reward))
             self.time += 1
-        return self.cumulative_regret, self.theta
+        return self.cumulative_regret
