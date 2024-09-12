@@ -197,8 +197,10 @@ class LinUCB_MABAgent:
             action_idx = self.select_action()
             reward = self.reward(action_idx)
             true_reward = np.max(self.A @ self.theta)
+
             self.update(action_idx, reward)
             regret = (true_reward - reward)
+
             self.cumulative_regret.append(self.cumulative_regret[-1] + regret)
             self.regret.append(regret)
             self.time += 1
@@ -210,17 +212,14 @@ class LinUCB_MABAgent:
 # UCB Agent Class
 
 class UCB_MABAgent:
-    def __init__(self, A, delta, n_rounds, true_rewards, rewardsXmovie_indices, actionXmovie_indices):
-        self.A = A
-        self.delta = delta
+    def __init__(self, n_rounds, n_actions, max_reward, true_rewards, rewardsXmovie_indices, actionXmovie_indices):
         self.n_rounds = n_rounds
         self.true_rewards = true_rewards
-        self.d = A.shape[1]
-        self.theta = np.random.rand(self.d)
+        self.max_reward = max_reward
         self.cumulative_regret = [0]
         self.rewardsXmovie_indices = rewardsXmovie_indices  
         self.actionXmovie_indices = actionXmovie_indices
-        self.n_actions = A.shape[0]
+        self.n_actions = n_actions
         self.action_counts = np.zeros(self.n_actions)
         self.total_reward = np.zeros(self.n_actions)
         self.UCB_values = np.zeros(self.n_actions)
@@ -231,7 +230,7 @@ class UCB_MABAgent:
         if self.time < self.n_actions:
             # Select each action at least once
             return self.time
-        self.UCB_values = self.total_reward / (self.action_counts + 1) + np.sqrt(2 * np.log(self.time + 1) / (self.action_counts + 1))
+        self.UCB_values = (self.total_reward / (self.action_counts + 1)) + np.sqrt(2 * np.log(self.time + 1) / (self.action_counts + 1))
         return np.argmax(self.UCB_values)
 
     def update(self, action_idx, reward):
@@ -247,14 +246,22 @@ class UCB_MABAgent:
         return self.true_rewards[reward_index]
 
     def run(self):
+        while self.time < self.n_actions:
+            action_idx = self.time
+            reward = self.reward(action_idx)
+            self.update(action_idx, reward)
+
+            self.cumulative_regret.append(self.cumulative_regret[-1] + (self.max_reward - reward))
+            self.time += 1
+
         while self.time < self.n_rounds:
             action_idx = self.select_action()
             reward = self.reward(action_idx)
             self.update(action_idx, reward)
-            true_reward = np.max(self.A @ self.theta)
-            self.cumulative_regret.append(self.cumulative_regret[-1] + (true_reward - reward))
+
+            self.cumulative_regret.append(self.cumulative_regret[-1] + (self.max_reward - reward))
             self.time += 1
-        return self.cumulative_regret, self.theta
+        return self.cumulative_regret
 
 
 
@@ -263,31 +270,28 @@ class UCB_MABAgent:
 
 
 class TS_MABAgent:
-    def __init__(self, A, n_rounds, true_rewards, rewardsXmovie_indices, actionXmovie_indices):
-        self.A = A
+    def __init__(self, n_rounds, n_actions, sigma, max_reward, true_rewards, rewardsXmovie_indices, actionXmovie_indices):
         self.n_rounds = n_rounds
+        self.sigma = sigma
         self.true_rewards = true_rewards
-        self.d = A.shape[1]
-        self.theta = np.random.rand(self.d)
+        self.max_reward = max_reward
         self.cumulative_regret = [0]
         self.rewardsXmovie_indices = rewardsXmovie_indices  
         self.actionXmovie_indices = actionXmovie_indices
-        self.n_actions = A.shape[0]
-        self.successes = np.zeros(self.n_actions)
-        self.failures = np.zeros(self.n_actions)
+        self.n_actions = n_actions
+        self.action_counts = np.zeros(self.n_actions)
+        self.total_reward = np.zeros(self.n_actions)
+        self.UCB_values = np.zeros(self.n_actions)
         self.time = 0
 
     def select_action(self):
         # Sample from Beta distribution for each action
-        sampled_values = np.random.beta(self.successes + 1, self.failures + 1)
+        sampled_values = np.random.normal(self.total_reward / self.action_counts, (self.sigma)**2 / self.action_counts)
         return np.argmax(sampled_values)
 
     def update(self, action_idx, reward):
-        # Update successes or failures based on the reward
-        if reward > 0:
-            self.successes[action_idx] += 1
-        else:
-            self.failures[action_idx] += 1
+        self.action_counts[action_idx] += 1
+        self.total_reward[action_idx] += reward
 
     def reward(self, action_idx):
         movie_id = self.actionXmovie_indices[action_idx]
@@ -298,14 +302,23 @@ class TS_MABAgent:
         return self.true_rewards[reward_index]
 
     def run(self):
+
+        while self.time < self.n_actions:
+            action_idx = self.time
+            reward = self.reward(action_idx)
+            self.update(action_idx, reward)
+
+            self.cumulative_regret.append(self.cumulative_regret[-1] + (self.max_reward - reward))
+            self.time += 1
+
         while self.time < self.n_rounds:
             action_idx = self.select_action()
             reward = self.reward(action_idx)
             self.update(action_idx, reward)
-            true_reward = np.max(self.A @ self.theta)
-            self.cumulative_regret.append(self.cumulative_regret[-1] + (true_reward - reward))
+
+            self.cumulative_regret.append(self.cumulative_regret[-1] + (self.max_reward - reward))
             self.time += 1
-        return self.cumulative_regret, self.theta
+        return self.cumulative_regret
 
 
 
@@ -313,17 +326,15 @@ class TS_MABAgent:
 
 
 class EXP3_MABAgent:
-    def __init__(self, A, gamma, n_rounds, true_rewards, rewardsXmovie_indices, actionXmovie_indices):
-        self.A = A
+    def __init__(self, A, gamma, n_rounds, n_actions, max_reward, true_rewards, rewardsXmovie_indices, actionXmovie_indices):
         self.gamma = gamma  # Exploration parameter
         self.n_rounds = n_rounds
         self.true_rewards = true_rewards
-        self.d = A.shape[1]
-        self.theta = np.random.rand(self.d)
+        self.max_reward = max_reward
         self.cumulative_regret = [0]
         self.rewardsXmovie_indices = rewardsXmovie_indices  
         self.actionXmovie_indices = actionXmovie_indices
-        self.n_actions = A.shape[0]
+        self.n_actions = n_actions
         self.weights = np.ones(self.n_actions)  # Initialize weights to 1 for each action
         self.probabilities = np.ones(self.n_actions) / self.n_actions  # Initial uniform probability distribution
         self.time = 0
@@ -351,7 +362,7 @@ class EXP3_MABAgent:
             action_idx = self.select_action()
             reward = self.reward(action_idx)
             self.update(action_idx, reward)
-            true_reward = np.max(self.A @ self.theta)
-            self.cumulative_regret.append(self.cumulative_regret[-1] + (true_reward - reward))
+        
+            self.cumulative_regret.append(self.cumulative_regret[-1] + (self.max_reward - reward))
             self.time += 1
         return self.cumulative_regret, self.theta
